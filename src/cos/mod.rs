@@ -1,5 +1,5 @@
 use std::io::prelude::*;
-use std::io;
+use std::io::{self, SeekFrom};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::ops::DerefMut;
@@ -26,14 +26,18 @@ impl CosDocument {
 		self.objects.push(object)
 	}
 
-	pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+	pub fn write<W: Write + Seek>(&self, writer: &mut W) -> io::Result<()> {
 		try!(write!(writer, "%PDF-1.1\n"));
         try!(write!(writer, "%¥±ë\n\n"));
 		for object in self.objects.iter() {
+			let offset = try!(writer.seek(SeekFrom::Current(0)));
+			println!("Offset: {}", offset);
 			try!(write!(writer, "{} {} obj\n", object.id, object.generation));
 			try!(CosDocument::write_cos_type(&object.value, writer));
 			try!(write!(writer, "\nendobj\n\n"));
 		}
+		let offset = try!(writer.seek(SeekFrom::Current(0)));
+		println!("Offset: {}", offset);
 		let trailer = r#"
 trailer
   <<  /Root 1 0 R
