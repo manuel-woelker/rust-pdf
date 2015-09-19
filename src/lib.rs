@@ -25,9 +25,6 @@ fn write_pdf() {
         let mut f = try!(File::create("target/test.pdf"));
         let mut document = CosDocument::new();
 
-/*
-        try!(write!(f, "%PDF-1.1\n"));
-        try!(write!(f, "%¥±ë\n\n"));*/
         let mut catalog = DirectCosObject::new();
         catalog.insert("Type".to_string(), CosType::Name(Box::new("Catalog".to_string())));
 
