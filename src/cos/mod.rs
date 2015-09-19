@@ -2,7 +2,8 @@ use std::io::prelude::*;
 use std::io::{self, SeekFrom};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
+use std::cell::RefCell;
 
 pub struct CosDocument {
 	pub next_object_id: u64,
@@ -13,6 +14,13 @@ impl CosDocument {
 
 	pub fn new() -> CosDocument {
 		CosDocument {next_object_id: 1, objects: Vec::new()}
+	}
+
+	pub fn create_direct_object(&mut self) -> Rc<RefCell<DirectCosObject>> {
+		let id = self.next_object_id;
+		self.next_object_id += 1;
+		let object = Rc::new(RefCell::new(DirectCosObject {id: id, generation: 0, map: HashMap::new()}));
+		object
 	}
 
 	pub fn create_object(&mut self, value: CosType) -> CosObject {
@@ -113,6 +121,25 @@ impl CosObject {
 		}
 		panic!("Expected hashmap");
 	}
+}
+
+pub struct DirectCosObject {
+	id: u64,
+	generation: u64,
+	map: HashMap<String, CosType>
+}
+
+impl Deref for DirectCosObject {
+	type Target = HashMap<String, CosType>;
+    fn deref<'a>(&'a self) -> &'a HashMap<String, CosType> {
+		&self.map
+	}
+}
+
+impl DerefMut for DirectCosObject {
+    fn deref_mut<'a>(&'a mut self) -> &'a mut HashMap<String, CosType> {
+        &mut self.map
+    }
 }
 
 pub struct IndirectCosObject {

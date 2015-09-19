@@ -22,6 +22,9 @@ fn write_pdf() {
     fn foo() -> io::Result<()> {
         let mut f = try!(File::create("target/test.pdf"));
         let mut document = CosDocument::new();
+
+        let mut foo = document.create_direct_object();
+        foo.borrow_mut().insert("Type".to_string(), CosType::Name(Box::new("Catalog".to_string())));
 /*
         try!(write!(f, "%PDF-1.1\n"));
         try!(write!(f, "%¥±ë\n\n"));*/
