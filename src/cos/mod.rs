@@ -5,43 +5,44 @@ use std::rc::Rc;
 use std::ops::{Deref, DerefMut};
 use std::cell::RefCell;
 
+use uuid::Uuid;
+
 pub struct CosDocument {
 	pub next_object_id: u64,
-	pub objects: Vec<CosObject>
+	pub objects: Vec<DirectCosObject>,
+	pub id_map: HashMap<String, u64>
 }
 
 impl CosDocument {
 
 	pub fn new() -> CosDocument {
-		CosDocument {next_object_id: 1, objects: Vec::new()}
+		CosDocument {next_object_id: 1, objects: Vec::new(), id_map: HashMap::new()}
 	}
 
-	pub fn create_direct_object(&mut self) -> Rc<RefCell<DirectCosObject>> {
-		let id = self.next_object_id;
-		self.next_object_id += 1;
-		let object = Rc::new(RefCell::new(DirectCosObject {id: id, generation: 0, map: HashMap::new()}));
-		object
-	}
-
-	pub fn create_object(&mut self, value: CosType) -> CosObject {
-		let id = self.next_object_id;
-		self.next_object_id += 1;
-		let object = CosObject {id: id, generation: 0, value: value};
-		object
-	}
-
-	pub fn add_object(&mut self, object: CosObject) {
+	pub fn add_object(&mut self, object: DirectCosObject) {
 		self.objects.push(object)
 	}
 
-	pub fn write<W: Write + Seek>(&self, writer: &mut W) -> io::Result<()> {
+	pub fn write<W: Write + Seek>(&mut self, writer: &mut W) -> io::Result<()> {
 		try!(write!(writer, "%PDF-1.1\n"));
         try!(write!(writer, "%¥±ë\n\n"));
+		// assign ids
+		let mut next_object_id = 1;
 		for object in self.objects.iter() {
+			self.id_map.insert(object.id.clone(), next_object_id);
+			next_object_id += 1;
+		}
+		let objects = self.objects.clone();
+		for object in objects.iter() {
 			let offset = try!(writer.seek(SeekFrom::Current(0)));
 			println!("Offset: {}", offset);
-			try!(write!(writer, "{} {} obj\n", object.id, object.generation));
-			try!(CosDocument::write_cos_type(&object.value, writer));
+			try!(write!(writer, "{} 0 obj\n", self.id_map.get(&object.id).unwrap()));
+			if(object.stream.is_some()) {
+				let stream = object.stream.as_ref().unwrap();
+				try!(self.write_stream(stream, writer));
+			} else {
+				try!(self.write_dictionary(&object.map, writer));
+			}
 			try!(write!(writer, "\nendobj\n\n"));
 		}
 		let offset = try!(writer.seek(SeekFrom::Current(0)));
@@ -57,7 +58,24 @@ trailer
 		Ok(())
 	}
 
-	fn write_cos_type<W: Write>(cos_type: &CosType, writer: &mut W) -> io::Result<()> {
+	fn write_dictionary<W: Write>(&mut self, dictionary: & HashMap<String, CosType>, writer: &mut W) -> io::Result<()> {
+		try!(write!(writer, "\n<< "));
+		for (key, val) in dictionary.iter() {
+			try!(write!(writer, "/{} ", key));
+			try!(self.write_cos_type(val, writer));
+		}
+		try!(write!(writer, ">> "));
+		Ok(())
+	}
+
+	fn write_stream<W: Write>(&mut self, stream: & String, writer: &mut W) -> io::Result<()> {
+		try!(write!(writer, "<< /Length {} >>\nstream\n", stream.len()));
+		try!(write!(writer, "{}", stream));
+		try!(write!(writer, "\nendstream\n"));
+		Ok(())
+	}
+
+	fn write_cos_type<W: Write>(&mut self, cos_type: &CosType, writer: &mut W) -> io::Result<()> {
 		match *cos_type {
 			CosType::Boolean(ref value) => {
 				if *value {
@@ -76,20 +94,20 @@ trailer
 				try!(write!(writer, "\n<< "));
 				for (key, val) in entries.iter() {
 					try!(write!(writer, "/{} ", key));
-					try!(CosDocument::write_cos_type(val, writer));
+					try!(self.write_cos_type(val, writer));
 				}
 				try!(write!(writer, ">> "));
 			}
 			CosType::Array(ref values) => {
 				try!(write!(writer, "[ "));
 				for value in values.iter() {
-					try!(CosDocument::write_cos_type(value, writer));
+					try!(self.write_cos_type(value, writer));
 					try!(write!(writer, " "));
 				}
 				try!(write!(writer, "] "));
 			}
 			CosType::IndirectObject(ref object) => {
-				try!(write!(writer, "{} {} R ", object.id, object.generation));
+				try!(write!(writer, "{} 0 R ", self.id_map.get(&object.id).unwrap()));
 			}
 			CosType::Stream(ref value) => {
 				try!(write!(writer, "<< /Length {} >>\nstream\n", value.len()));
@@ -111,10 +129,6 @@ pub struct CosObject {
 }
 
 impl CosObject {
-	pub fn indirect(&self) -> CosType {
-		return CosType::IndirectObject(IndirectCosObject {id: self.id, generation: self.generation});
-	}
-
 	pub fn get_hashmap<'a>(&'a mut self) -> &'a mut HashMap<String, CosType> {
 		if let CosType::Dictionary(ref mut entries) = self.value {
 			return entries.deref_mut();
@@ -123,11 +137,28 @@ impl CosObject {
 	}
 }
 
+#[derive(Debug, Clone)]
 pub struct DirectCosObject {
-	id: u64,
-	generation: u64,
-	map: HashMap<String, CosType>
+	id: String,
+	map: HashMap<String, CosType>,
+	stream: Option<String>
 }
+
+impl DirectCosObject {
+	pub fn new() -> DirectCosObject {
+		DirectCosObject {id: Uuid::new_v4().to_simple_string(), map: HashMap::new(), stream: None}
+	}
+
+	pub fn new_stream(stream: String) -> DirectCosObject {
+		DirectCosObject {id: Uuid::new_v4().to_simple_string(), map: HashMap::new(), stream: Some(stream)}
+	}
+
+	pub fn indirect(&self) -> CosType {
+		return CosType::IndirectObject(IndirectCosObject {id: self.id.clone()});
+	}
+
+}
+
 
 impl Deref for DirectCosObject {
 	type Target = HashMap<String, CosType>;
@@ -142,11 +173,12 @@ impl DerefMut for DirectCosObject {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct IndirectCosObject {
-	id: u64,
-	generation: u64
+	id: String,
 }
 
+#[derive(Debug, Clone)]
 pub enum CosType {
 	Boolean(bool),
 	Integer(i64),
