@@ -1,6 +1,6 @@
 use std::io::prelude::*;
 use std::io::{self, SeekFrom};
-use std::collections::HashMap;
+use std::collections::{HashMap};
 
 use cos::*;
 
@@ -30,12 +30,13 @@ impl CosDocument {
 
 
 struct CosWriter {
-	id_map: HashMap<String, u64>
+	id_map: HashMap<String, u64>,
+	object_offsets: Vec<u64>,
 }
 
 impl CosWriter {
 	pub fn write<W: Write + Seek>(document: &CosDocument, writer: &mut W) -> io::Result<()> {
-		let mut cos_writer = CosWriter {id_map: HashMap::new()};
+		let mut cos_writer = CosWriter {id_map: HashMap::new(), object_offsets: vec![]};
 
 		try!(write!(writer, "%PDF-1.1\n"));
 		try!(write!(writer, "%¥±ë\n\n"));
@@ -48,6 +49,7 @@ impl CosWriter {
 		let objects = document.objects.clone();
 		for object in objects.iter() {
 			let offset = try!(writer.seek(SeekFrom::Current(0)));
+			cos_writer.object_offsets.push(offset);
 			println!("Offset: {}", offset);
 			try!(write!(writer, "{} 0 obj\n", cos_writer.id_map.get(&object.id).unwrap()));
 			if object.stream.is_some() {
@@ -58,16 +60,24 @@ impl CosWriter {
 			}
 			try!(write!(writer, "\nendobj\n\n"));
 		}
-		let offset = try!(writer.seek(SeekFrom::Current(0)));
-		println!("Offset: {}", offset);
-		let trailer = r#"
+		let xref_offset = try!(writer.seek(SeekFrom::Current(0)));
+		println!("Offset: {}", xref_offset);
+		// XREF
+		try!(write!(writer, "xref\n0 {}\n0000000000 65535 f \n", cos_writer.id_map.len()+1));
+
+		for offset in cos_writer.object_offsets.iter() {
+			try!(write!(writer, "{:0>10} 00000 n \n", offset));
+		}
+
+		let trailer = format!(r#"
 trailer
   <<  /Root 1 0 R
 	  /Info 2 0 R
-	  /Size 5
+	  /Size {}
   >>
-%%EOF
-		"#;
+startxref
+{}
+%%EOF"#, cos_writer.id_map.len(), xref_offset);
 		try!(write!(writer, "{}", trailer));
 		Ok(())
 	}
