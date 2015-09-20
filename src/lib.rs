@@ -1,4 +1,6 @@
 extern crate uuid;
+extern crate time;
+
 
 pub mod cos;
 
@@ -13,6 +15,7 @@ mod tests {
     use std::mem;
     use std::rc::Rc;
     use std::collections::HashMap;
+    use time;
 
 #[test]
 fn write_pdf() {
@@ -33,7 +36,7 @@ fn write_pdf() {
         pages.insert("Type".to_string(), CosType::Name(Box::new("Pages".to_string())));
         pages.insert("Count".to_string(), CosType::Integer(1));
         pages.insert("MediaBox".to_string(), CosType::Array(Box::new(vec![
-            CosType::Integer(0), CosType::Integer(0), CosType::Integer(300), CosType::Integer(144)])));
+            CosType::Integer(0), CosType::Integer(0), CosType::Float(595.276), CosType::Float(841.89)])));
         catalog.insert("Pages".to_string(), pages.indirect());
 
         let mut page = DirectCosObject::new();
@@ -60,7 +63,17 @@ r#"  BT
   ET"#.to_string());
         page.insert("Contents".to_string(), stream.indirect());
 
+        let mut info_dictionary = DirectCosObject::new();
+        info_dictionary.insert("Title".to_string(), CosType::String(Box::new("rust-pdf test document".to_string())));
+        info_dictionary.insert("Author".to_string(), CosType::String(Box::new("Manuel Woelker".to_string())));
+        info_dictionary.insert("Producer".to_string(), CosType::String(Box::new(format!("rust-pdf {}", env!("CARGO_PKG_VERSION")).to_string())));
+        let now = time::now_utc();
+        let creation_date = time::strftime("D:%Y%m%d%H%M%SZ",&now).unwrap();
+        println!("CreationDate: {}", creation_date);
+        info_dictionary.insert("CreationDate".to_string(), CosType::String(Box::new(creation_date.clone())));
+        info_dictionary.insert("ModDate".to_string(), CosType::String(Box::new(creation_date)));
         document.add_object(catalog);
+        document.add_object(info_dictionary);
         document.add_object(pages);
         document.add_object(page);
         document.add_object(stream);

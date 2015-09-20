@@ -63,6 +63,7 @@ impl CosWriter {
 		let trailer = r#"
 trailer
   <<  /Root 1 0 R
+	  /Info 2 0 R
 	  /Size 5
   >>
 %%EOF
@@ -100,7 +101,13 @@ trailer
 			CosType::Name(ref value) => {
 				try!(write!(writer, "/{} ", value));
 			}
+			CosType::String(ref value) => {
+				try!(write!(writer, "({}) ", value));
+			}
 			CosType::Integer(ref value) => {
+				try!(write!(writer, "{} ", value));
+			}
+			CosType::Float(ref value) => {
 				try!(write!(writer, "{} ", value));
 			}
 			CosType::Dictionary(ref entries) => {
@@ -127,9 +134,9 @@ trailer
 				try!(write!(writer, "{}", value));
 				try!(write!(writer, "\nendstream\n"));
 			}
-			_ => {
-
-			}
+/*			_ => {
+				panic!("Unsupported cos type: {:?}", cos_type);
+			}*/
 		}
 		Ok(())
 	}
