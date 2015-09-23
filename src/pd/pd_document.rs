@@ -22,7 +22,19 @@ impl PDDocument {
         catalog.insert("Type".to_string(), CosType::Name(Box::new("Catalog".to_string())));
 
 		let mut info_dictionary = DirectCosObject::new();
-        info_dictionary.insert("Title".to_string(), CosType::String(Box::new("rust-pdf test document".to_string())));
+		let document_information = & self.information;
+		fn set_attribute(value_option: &Option<String>, name: &str, info_dictionary: &mut DirectCosObject) {
+			if let Some(ref value) = *value_option {
+				info_dictionary.insert(name.to_string(), CosType::String(Box::new(value.clone())));
+			}
+		}
+		set_attribute(&document_information.title, "Title", &mut info_dictionary);
+		set_attribute(&document_information.author, "Author", &mut info_dictionary);
+		set_attribute(&document_information.subject, "Subject", &mut info_dictionary);
+		set_attribute(&document_information.keywords, "Keywords", &mut info_dictionary);
+
+		info_dictionary.insert("Producer".to_string(), CosType::String(Box::new(format!("rust-pdf {}", env!("CARGO_PKG_VERSION")).to_string())));
+
         let now = time::now_utc();
         let creation_date = time::strftime("D:%Y%m%d%H%M%SZ",&now).unwrap();
         info_dictionary.insert("CreationDate".to_string(), CosType::String(Box::new(creation_date.clone())));
@@ -84,6 +96,10 @@ mod tests {
 	    fn foo() -> io::Result<()> {
 			let mut document = PDDocument::new();
 			document.information.title = Some("Foobar".into());
+			document.information.author = Some("John Doe".into());
+			document.information.subject = Some("The Foobar".into());
+			document.information.keywords = Some("foo bar".into());
+
 
 			let page_1 = PDPage::new_a4();
 			let page_2 = PDPage::new_a5();
