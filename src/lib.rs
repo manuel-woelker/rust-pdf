@@ -13,18 +13,11 @@ mod tests {
     use std::fs::File;
     use std::io::prelude::*;
     use std::io;
-    use std::mem;
-    use std::rc::Rc;
     use std::collections::HashMap;
     use time;
 
 #[test]
 fn write_pdf() {
-    println!("Sizeof Rc: {}", mem::size_of::<Rc<CosType>>());
-    println!("Sizeof CosType: {}", mem::size_of::<CosType>());
-    println!("Sizeof HashMap: {}", mem::size_of::<HashMap<String, String>>());
-    println!("Sizeof String: {}", mem::size_of::<String>());
-    println!("Sizeof Box: {}", mem::size_of::<Box<String>>());
     fn foo() -> io::Result<()> {
         let mut f = try!(File::create("target/test.pdf"));
         let mut document = CosDocument::new();
@@ -70,7 +63,6 @@ r#"  BT
         info_dictionary.insert("Producer".to_string(), CosType::String(Box::new(format!("rust-pdf {}", env!("CARGO_PKG_VERSION")).to_string())));
         let now = time::now_utc();
         let creation_date = time::strftime("D:%Y%m%d%H%M%SZ",&now).unwrap();
-        println!("CreationDate: {}", creation_date);
         info_dictionary.insert("CreationDate".to_string(), CosType::String(Box::new(creation_date.clone())));
         info_dictionary.insert("ModDate".to_string(), CosType::String(Box::new(creation_date)));
         document.add_object(catalog);

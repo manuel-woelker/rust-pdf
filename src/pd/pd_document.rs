@@ -25,7 +25,6 @@ impl PDDocument {
         info_dictionary.insert("Title".to_string(), CosType::String(Box::new("rust-pdf test document".to_string())));
         let now = time::now_utc();
         let creation_date = time::strftime("D:%Y%m%d%H%M%SZ",&now).unwrap();
-        println!("CreationDate: {}", creation_date);
         info_dictionary.insert("CreationDate".to_string(), CosType::String(Box::new(creation_date.clone())));
         info_dictionary.insert("ModDate".to_string(), CosType::String(Box::new(creation_date)));
 
@@ -92,7 +91,6 @@ mod tests {
 			document.add_page(page_1);
 			document.add_page(page_2);
 
-			println!("Document: {:?}", document);
 			let mut f = try!(File::create("target/test2.pdf"));
 			try!(document.save(&mut f));
 			Ok(())

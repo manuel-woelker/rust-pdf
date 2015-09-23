@@ -50,7 +50,6 @@ impl CosWriter {
 		for object in objects.iter() {
 			let offset = try!(writer.seek(SeekFrom::Current(0)));
 			cos_writer.object_offsets.push(offset);
-			println!("Offset: {}", offset);
 			try!(write!(writer, "{} 0 obj\n", cos_writer.id_map.get(&object.id).unwrap()));
 			if object.stream.is_some() {
 				let stream = object.stream.as_ref().unwrap();
@@ -61,7 +60,6 @@ impl CosWriter {
 			try!(write!(writer, "\nendobj\n\n"));
 		}
 		let xref_offset = try!(writer.seek(SeekFrom::Current(0)));
-		println!("Offset: {}", xref_offset);
 		// XREF
 		try!(write!(writer, "xref\n0 {}\n0000000000 65535 f \n", cos_writer.id_map.len()+1));
 
